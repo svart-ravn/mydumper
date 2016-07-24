@@ -1,5 +1,5 @@
 # mydumper
-mydumper builded over 5.7.13.
+mydumper built over 5.7.13.
 
 How to:
 - wget from https://launchpad.net/mydumper/+download
