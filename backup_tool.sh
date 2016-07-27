@@ -51,9 +51,8 @@ function get_options(){
 
 # --------------------------------------------------------------------------------------------------
 function init_folder(){
-   # sudo -u mysql 
-   mkdir -p $BACKUP_PATH/$BACKUP_FOLDER
-   mkdir -p $BACKUP_PATH/$BACKUP_FOLDER_FULL
+   sudo -u mysql mkdir -p $BACKUP_PATH/$BACKUP_FOLDER
+   sudo -u mysql mkdir -p $BACKUP_PATH/$BACKUP_FOLDER_FULL
 }
 
 
@@ -78,12 +77,12 @@ function init(){
    local CPU_AMOUNT=$(($(grep -c ^processor /proc/cpuinfo)/4*3))
    test $CPU_AMOUNT -eq 0 && CPU_AMOUNT=1
 
-   # DB setup
-   # if [ -z "$DB_TO_BACKUP" ]; then
-   #    DB_TO_BACKUP=$(mysql -BN -e 'show databases' | tr '\n' ',' | sed 's/,$//g')
-   # else
-   #    DB_TO_BACKUP="${DB_TO_BACKUP},mysql,sys,information_schema,performance_schema"
-   # fi
+   DB setup
+   if [ -z "$DB_TO_BACKUP" ]; then
+      DB_TO_BACKUP=$(mysql -BN -e 'show databases' | tr '\n' ',' | sed 's/,$//g')
+   else
+      DB_TO_BACKUP="${DB_TO_BACKUP},mysql,sys,information_schema,performance_schema"
+   fi
 
    # rest
    test -t 0 && IS_INTERACTIVE=1
@@ -204,10 +203,6 @@ echo_confirmation
 init_folder
 
 trap trap_exit INT
-echo "sleeping 3s"
-sleep 3
-
-exit 0
 
 echo "dumping schema..."
 backup_schema
