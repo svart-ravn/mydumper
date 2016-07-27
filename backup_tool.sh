@@ -60,15 +60,16 @@ function init_folder(){
 # --------------------------------------------------------------------------------------------------
 function init(){
    # setup backup folders
-   BACKUP_FULL=$(ls $BACKUP_PATH | grep -i current)
+   CURRENT_BACKUP_FOLDER=$(ls $BACKUP_PATH | grep -i current)
 
-   test -z "$BACKUP_FULL" && IS_INCREMENTAL=0 || IS_INCREMENTAL=1
+   test -z "$CURRENT_BACKUP_FOLDER" && IS_INCREMENTAL=0 || IS_INCREMENTAL=1
 
    if [ $IS_INCREMENTAL -eq 0 ]; then
       BACKUP_FOLDER="current_$DTM"
       BACKUP_FOLDER_FULL=$BACKUP
    else
       BACKUP_FOLDER="incremental"
+      BACKUP_FOLDER_FULL=$CURRENT_BACKUP_FOLDER
    fi
 
    mkdir -p $LOG_FILE_PATH
@@ -77,7 +78,7 @@ function init(){
    local CPU_AMOUNT=$(($(grep -c ^processor /proc/cpuinfo)/4*3))
    test $CPU_AMOUNT -eq 0 && CPU_AMOUNT=1
 
-   DB setup
+   # DB setup
    if [ -z "$DB_TO_BACKUP" ]; then
       DB_TO_BACKUP=$(mysql -BN -e 'show databases' | tr '\n' ',' | sed 's/,$//g')
    else
@@ -98,7 +99,7 @@ function echo_confirmation(){
 cat << EOF
 
    Basic path:     $BACKUP_PATH
-   Innodb backup:      $BACKUP_FOLDER   $(test $IS_INCREMENTAL -eq 1 && echo " -> $BACKUP_FULL")
+   Innodb backup:      $BACKUP_FOLDER   $(test $IS_INCREMENTAL -eq 1 && echo " -> $BACKUP_PATH/$BACKUP_FOLDER_FULL")
    Schema backup:      $BACKUP_SCHEMA_FILE
    
    Databases:      $DB_TO_BACKUP
@@ -154,7 +155,7 @@ function backup(){
    if [ $IS_INCREMENTAL == 0 ]; then
       sudo -u mysql innobackupex $ARGS --include="$DB_PATTERN" $BACKUP_PATH/$BACKUP_FOLDER > $LOG_FILE_PATH/$LOG_FILE 2>&1
    else
-      sudo -u mysql innobackupex $ARGS --include="$DB_PATTERN" --incremental=$BACKUP_PATH/$BACKUP_FOLDER --incremental-basedir=$BACKUP_PATH/$BACKUP_FOLDER_FULL > $LOG_FILE_PATH/$LOG_FILE 2>&1
+      sudo -u mysql innobackupex $ARGS --include="$DB_PATTERN" --incremental $BACKUP_PATH/$BACKUP_FOLDER --incremental-basedir=$BACKUP_PATH/$BACKUP_FOLDER_FULL > $LOG_FILE_PATH/$LOG_FILE 2>&1
    fi
 
    tail -1 $LOG_FILE_PATH/$LOG_FILE | grep -q "completed OK!"
@@ -166,13 +167,13 @@ function backup(){
 # --------------------------------------------------------------------------------------------------
 function clear_current_backup_folder(){
    echo "Deleting backup folder $BACKUP_PATH/$BACKUP_FOLDER"
-   rm -rf $BACKUP_PATH/$BACKUP_FOLDER
+   sudo -u mysql rm -rf $BACKUP_PATH/$BACKUP_FOLDER
 }
 
 
 
 # --------------------------------------------------------------------------------------------------
-function apply_Logs(){
+function apply_logs(){
    if [ $IS_INCREMENTAL -eq 0 ]; then
       sudo -u mysql innobackupex --apply-log --redo-only "$BACKUP_PATH/$BACKUP_FOLDER" >> $LOG_FILE_PATH/$LOG_FILE 2>&1
    else
@@ -210,7 +211,8 @@ backup_schema
 echo "Starting backup...."
 if backup; then
    echo "going to apply-log logs"
-   if ! apply-log; then
+   
+   if ! apply_logs; then
       echo "Applying logs failed..."
       clear_current_backup_folder
    fi
