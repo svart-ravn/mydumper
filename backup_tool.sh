@@ -180,12 +180,23 @@ function apply_logs(){
    if [ $IS_INCREMENTAL -eq 0 ]; then
       sudo -u mysql innobackupex --apply-log --redo-only "$BACKUP_PATH/$BACKUP_FOLDER" >> $LOG_FILE_PATH/$LOG_FILE 2>&1
    else
-      echo sudo -u mysql innobackupex --redo-only --apply-log "$BACKUP_PATH/$BACKUP_FOLDER_FULL" --incremental-dir "$BACKUP_PATH/$BACKUP_FOLDER"
-      sudo -u mysql innobackupex --apply-log-only --incremental-dir="$BACKUP_PATH/$BACKUP_FOLDER" "$BACKUP_PATH/$BACKUP_FOLDER_FULL"  >> $LOG_FILE_PATH/$LOG_FILE 2>&1
+      sudo -u mysql innobackupex --apply-log-only  --incremental-dir="$BACKUP_PATH/$BACKUP_FOLDER" "$BACKUP_PATH/$BACKUP_FOLDER_FULL"  >> $LOG_FILE_PATH/$LOG_FILE 2>&1
    fi
 
    tail -1 $LOG_FILE_PATH/$LOG_FILE | grep -q "completed OK!"
-   return $?
+   RET=$?
+   
+   if [ $RET -eq 0 ] && [ $IS_INCREMENTAL -eq 1 ]; then
+      local TMP_FOLDER=$(ls -t $BACKUP_PATH/$BACKUP_FOLDER_FULL/ | head -1)
+
+      sudo -u mysql mkdir -p $BACKUP_PATH/$TMP_FOLDER
+      sudo -u mysql mv $BACKUP_PATH/$BACKUP_FOLDER_FULL/$TMP_FOLDER/ $BACKUP_PATH/
+      sudo -u mysql rm -rf "$BACKUP_PATH/$BACKUP_FOLDER_FULL/"*
+      sudo -u mysql bash -c "cd $BACKUP_PATH/$TMP_FOLDER; cp -R * $BACKUP_PATH/$BACKUP_FOLDER_FULL/"
+      sudo -u mysql rm -rf $BACKUP_PATH/$TMP_FOLDER
+   fi
+
+   return $RET
 }
 
 
