@@ -194,6 +194,7 @@ function apply_logs(){
       sudo -u mysql rm -rf "$BACKUP_PATH/$BACKUP_FOLDER_FULL/"*
       sudo -u mysql bash -c "cd $BACKUP_PATH/$TMP_FOLDER; cp -R * $BACKUP_PATH/$BACKUP_FOLDER_FULL/"
       sudo -u mysql rm -rf $BACKUP_PATH/$TMP_FOLDER
+      sudo -u mysql innobackupex --apply-log $BACKUP_PATH/$BACKUP_FOLDER_FULL/   >> $LOG_FILE_PATH/$LOG_FILE 2>&1
    fi
 
    return $RET
