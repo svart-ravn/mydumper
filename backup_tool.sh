@@ -53,6 +53,8 @@ function get_options(){
 function init_folder(){
    sudo -u mysql mkdir -p $BACKUP_PATH/$BACKUP_FOLDER
    sudo -u mysql mkdir -p $BACKUP_PATH/$BACKUP_FOLDER_FULL
+
+   test $IS_INCREMENTAL -eq 1 && sudo -u mysql rm -rf $BACKUP_PATH/$BACKUP_FOLDER/* 2>/dev/null
 }
 
 
@@ -60,9 +62,13 @@ function init_folder(){
 # --------------------------------------------------------------------------------------------------
 function init(){
    # setup backup folders
-   CURRENT_BACKUP_FOLDER=$(ls $BACKUP_PATH | grep -i current)
+   CURRENT_BACKUP_FOLDER=$(ls $BACKUP_PATH 2>/dev/null | grep -i current)
 
-   test -z "$CURRENT_BACKUP_FOLDER" && IS_INCREMENTAL=0 || IS_INCREMENTAL=1
+   if [ -z "$CURRENT_BACKUP_FOLDER" ] || [ $(ls $BACKUP_PATH/$CURRENT_BACKUP_FOLDER 2>/dev/null | wc -l) -eq 0 ]; then
+      IS_INCREMENTAL=0
+   else
+      IS_INCREMENTAL=1
+   fi
 
    if [ $IS_INCREMENTAL -eq 0 ]; then
       BACKUP_FOLDER="current_$DTM"
@@ -148,9 +154,6 @@ function backup(){
 
    DB_PATTERN=$(echo $DB_TO_BACKUP | tr ',' '\n' | awk '{print "(" $0 "[.].*)"}' | tr '\n' '|' | sed 's/|$//g')
 
-   # clearing folder
-   
-
    ARGS="--no-timestamp --user=${DB_USER} --password=${DB_PASSWORD} --parallel=$CPU_AMOUNT"
    if [ $IS_INCREMENTAL == 0 ]; then
       sudo -u mysql innobackupex $ARGS --include="$DB_PATTERN" $BACKUP_PATH/$BACKUP_FOLDER > $LOG_FILE_PATH/$LOG_FILE 2>&1
@@ -177,7 +180,8 @@ function apply_logs(){
    if [ $IS_INCREMENTAL -eq 0 ]; then
       sudo -u mysql innobackupex --apply-log --redo-only "$BACKUP_PATH/$BACKUP_FOLDER" >> $LOG_FILE_PATH/$LOG_FILE 2>&1
    else
-      sudo -u mysql innobackupex --apply-log --redo-only --incremental-dir "$BACKUP_PATH/$BACKUP_FOLDER" "$BACKUP_PATH/$BACKUP_FOLDER_FULL" >> $LOG_FILE_PATH/$LOG_FILE 2>&1
+      echo sudo -u mysql innobackupex --redo-only --apply-log "$BACKUP_PATH/$BACKUP_FOLDER_FULL" --incremental-dir "$BACKUP_PATH/$BACKUP_FOLDER"
+      sudo -u mysql innobackupex --apply-log-only --incremental-dir="$BACKUP_PATH/$BACKUP_FOLDER" "$BACKUP_PATH/$BACKUP_FOLDER_FULL"  >> $LOG_FILE_PATH/$LOG_FILE 2>&1
    fi
 
    tail -1 $LOG_FILE_PATH/$LOG_FILE | grep -q "completed OK!"
@@ -218,7 +222,7 @@ if backup; then
    fi
 else
    echo -e "Backup failed for some reasons...\nCheck logs: $LOG_FILE_PATH/$LOG_FILE"
-   clear_current_backup_folder
+   # clear_current_backup_folder
    exit 1
 fi
 
