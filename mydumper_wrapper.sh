@@ -93,4 +93,4 @@ echo_confirmation
 mydumper -B $DB -o $BACKUP_FOLDER -r $CHUNK_SIZE -t $CPU_AMOUNT -c -v 3 --events --routines
 
 
- $?
+exit $?
