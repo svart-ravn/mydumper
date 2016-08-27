@@ -4,9 +4,6 @@ DTM=$(date +'%Y_%d_%m__%H_%M_%S')
 DTM=$(date +'%Y_%d_%m')
 
 
-DB_TO_BACKUP=
-
-
 BACKUP_SCHEMA_FILE=schema_$DTM
 LOG_FILE=dump_${DTM}.log
 LOG_FILE_PATH=./
@@ -40,7 +37,7 @@ function get_options(){
    for ARG in $OPTIONS; do
        index=$(($index+1));
        case $ARG in
-         --databases|-d)   DB_TO_BACKUP="${ARGUMENTS[index]}";;
+         # --databases|-d)   DB_TO_BACKUP="${ARGUMENTS[index]}";;
          --backup-path|-p) BACKUP_PATH="${ARGUMENTS[index]}";;
          --help|-h)        usage; exit 1;;
       esac
@@ -85,11 +82,11 @@ function init(){
    test $CPU_AMOUNT -eq 0 && CPU_AMOUNT=1
 
    # DB setup
-   if [ -z "$DB_TO_BACKUP" ]; then
-      DB_TO_BACKUP=$(mysql -BN -e 'show databases' | tr '\n' ',' | sed 's/,$//g')
-   else
-      DB_TO_BACKUP="${DB_TO_BACKUP},mysql,sys,information_schema,performance_schema"
-   fi
+   # if [ -z "$DB_TO_BACKUP" ]; then
+   #    DB_TO_BACKUP=$(mysql -BN -e 'show databases' | tr '\n' ',' | sed 's/,$//g')
+   # else
+   #    DB_TO_BACKUP="${DB_TO_BACKUP},mysql,sys,information_schema,performance_schema"
+   # fi
 
    # rest
    test -t 0 && IS_INTERACTIVE=1
@@ -108,7 +105,7 @@ cat << EOF
    Innodb backup:      $BACKUP_FOLDER   $(test $IS_INCREMENTAL -eq 1 && echo " -> $BACKUP_PATH/$BACKUP_FOLDER_FULL")
    Schema backup:      $BACKUP_SCHEMA_FILE
    
-   Databases:      $DB_TO_BACKUP
+   Databases:      all
    Log file:       $LOG_FILE_PATH/$LOG_FILE
 
    incremental?:   $IS_INCREMENTAL 
@@ -152,13 +149,13 @@ function backup(){
    local DB_USER=$(grep '^user' ~/.my.cnf | cut -d '=' -f2 | sed 's/ //g')
    local DB_PASSWORD=$(grep '^password' ~/.my.cnf | cut -d '=' -f2 | sed 's/ //g')
 
-   DB_PATTERN=$(echo $DB_TO_BACKUP | tr ',' '\n' | awk '{print "(" $0 "[.].*)"}' | tr '\n' '|' | sed 's/|$//g')
+   # DB_PATTERN=$(echo $DB_TO_BACKUP | tr ',' '\n' | awk '{print "(" $0 "[.].*)"}' | tr '\n' '|' | sed 's/|$//g')
 
    ARGS="--no-timestamp --user=${DB_USER} --password=${DB_PASSWORD} --parallel=$CPU_AMOUNT"
    if [ $IS_INCREMENTAL == 0 ]; then
-      sudo -u mysql innobackupex $ARGS --include="$DB_PATTERN" $BACKUP_PATH/$BACKUP_FOLDER > $LOG_FILE_PATH/$LOG_FILE 2>&1
+      sudo -u mysql innobackupex $ARGS $BACKUP_PATH/$BACKUP_FOLDER > $LOG_FILE_PATH/$LOG_FILE 2>&1
    else
-      sudo -u mysql innobackupex $ARGS --include="$DB_PATTERN" --incremental $BACKUP_PATH/$BACKUP_FOLDER --incremental-basedir=$BACKUP_PATH/$BACKUP_FOLDER_FULL > $LOG_FILE_PATH/$LOG_FILE 2>&1
+      sudo -u mysql innobackupex $ARGS --incremental $BACKUP_PATH/$BACKUP_FOLDER --incremental-basedir=$BACKUP_PATH/$BACKUP_FOLDER_FULL > $LOG_FILE_PATH/$LOG_FILE 2>&1
    fi
 
    tail -1 $LOG_FILE_PATH/$LOG_FILE | grep -q "completed OK!"
@@ -204,7 +201,9 @@ function apply_logs(){
 
 # --------------------------------------------------------------------------------------------------
 function backup_schema(){
-   mysqldump --opt --single-transaction --no-data  --databases $(echo $DB_TO_BACKUP | tr ',' ' ') | pigz | sudo -u mysql tee "$BACKUP_PATH/$BACKUP_SCHEMA_FILE.sql.gz" > /dev/null
+   # mysqldump --opt --single-transaction --no-data  --all-databases | pigz | sudo -u mysql tee "$BACKUP_PATH/$BACKUP_SCHEMA_FILE.sql.gz" > /dev/null
+   # mysqldump --opt --single-transaction --no-data  --databases $(echo $DB_TO_BACKUP | tr ',' ' ') | pigz | sudo -u mysql tee "$BACKUP_PATH/$BACKUP_SCHEMA_FILE.sql.gz" > /dev/null
+   mysqldump --opt --single-transaction --no-data  --databases $(mysql -BN -e 'show databases' | grep -v -E '(information|performance)_schema' | grep -vw -e mysql -e sys) | pigz | sudo -u mysql tee "$BACKUP_PATH/$BACKUP_SCHEMA_FILE.sql.gz" > /dev/null
 }
 
 
