@@ -78,7 +78,7 @@ function init(){
    mkdir -p $LOG_FILE_PATH
 
    # CPU
-   local CPU_AMOUNT=$(($(grep -c ^processor /proc/cpuinfo)/4*3))
+   CPU_AMOUNT=$(($(grep -c ^processor /proc/cpuinfo)/4*3))
    test $CPU_AMOUNT -eq 0 && CPU_AMOUNT=1
 
    # DB setup
@@ -91,7 +91,7 @@ function init(){
    # rest
    test -t 0 && IS_INTERACTIVE=1
 
-
+   #sudo -u mysql mkdir -p $BACKUP_PATH/$BACKUP_FOLDER
    return 0
 }
 
@@ -157,7 +157,7 @@ function backup(){
    else
       sudo -u mysql innobackupex $ARGS --incremental $BACKUP_PATH/$BACKUP_FOLDER --incremental-basedir=$BACKUP_PATH/$BACKUP_FOLDER_FULL > $LOG_FILE_PATH/$LOG_FILE 2>&1
    fi
-
+   
    tail -1 $LOG_FILE_PATH/$LOG_FILE | grep -q "completed OK!"
    return $?
 }
@@ -174,23 +174,30 @@ function clear_current_backup_folder(){
 
 # --------------------------------------------------------------------------------------------------
 function apply_logs(){
-   if [ $IS_INCREMENTAL -eq 0 ]; then
+
+
+   local DB_USER=$(grep '^user' ~/.my.cnf | cut -d '=' -f2 | sed 's/ //g')
+   local DB_PASSWORD=$(grep '^password' ~/.my.cnf | cut -d '=' -f2 | sed 's/ //g')
+ARGS="--no-timestamp --user=$DB_USER --password=$DB_PASSWORD"
+ 
+  if [ $IS_INCREMENTAL -eq 0 ]; then
       sudo -u mysql innobackupex --apply-log --redo-only "$BACKUP_PATH/$BACKUP_FOLDER" >> $LOG_FILE_PATH/$LOG_FILE 2>&1
    else
-      sudo -u mysql innobackupex --apply-log-only  --incremental-dir="$BACKUP_PATH/$BACKUP_FOLDER" "$BACKUP_PATH/$BACKUP_FOLDER_FULL"  >> $LOG_FILE_PATH/$LOG_FILE 2>&1
+      sudo -u mysql innobackupex --apply-log --redo-only  --incremental-dir="$BACKUP_PATH/$BACKUP_FOLDER" "$BACKUP_PATH/$BACKUP_FOLDER_FULL"  >> $LOG_FILE_PATH/$LOG_FILE 2>&1
    fi
+
 
    tail -1 $LOG_FILE_PATH/$LOG_FILE | grep -q "completed OK!"
    RET=$?
    
    if [ $RET -eq 0 ] && [ $IS_INCREMENTAL -eq 1 ]; then
-      local TMP_FOLDER=$(ls -t $BACKUP_PATH/$BACKUP_FOLDER_FULL/ | head -1)
+    #  local TMP_FOLDER=$(ls -t $BACKUP_PATH/$BACKUP_FOLDER_FULL/ | head -1)
 
-      sudo -u mysql mkdir -p $BACKUP_PATH/$TMP_FOLDER
-      sudo -u mysql mv $BACKUP_PATH/$BACKUP_FOLDER_FULL/$TMP_FOLDER/ $BACKUP_PATH/
-      sudo -u mysql rm -rf "$BACKUP_PATH/$BACKUP_FOLDER_FULL/"*
-      sudo -u mysql bash -c "cd $BACKUP_PATH/$TMP_FOLDER; cp -R * $BACKUP_PATH/$BACKUP_FOLDER_FULL/"
-      sudo -u mysql rm -rf $BACKUP_PATH/$TMP_FOLDER
+    #  sudo -u mysql mkdir -p $BACKUP_PATH/$TMP_FOLDER
+    #  sudo -u mysql mv $BACKUP_PATH/$BACKUP_FOLDER_FULL/$TMP_FOLDER/ $BACKUP_PATH/
+    #  sudo -u mysql rm -rf "$BACKUP_PATH/$BACKUP_FOLDER_FULL/"*
+    #  sudo -u mysql bash -c "cd $BACKUP_PATH/$TMP_FOLDER; cp -R * $BACKUP_PATH/$BACKUP_FOLDER_FULL/"
+    #  sudo -u mysql rm -rf $BACKUP_PATH/$TMP_FOLDER
       sudo -u mysql innobackupex --apply-log $BACKUP_PATH/$BACKUP_FOLDER_FULL/   >> $LOG_FILE_PATH/$LOG_FILE 2>&1
    fi
 
@@ -241,3 +248,4 @@ fi
 echo "Completed. OK!"
 
 exit 0
+
