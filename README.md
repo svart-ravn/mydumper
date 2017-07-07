@@ -1,4 +1,4 @@
-# mydumper
+# mydumper (MySQL 5.7.13)
 mydumper built over 5.7.13.
 
 How to:
@@ -9,6 +9,16 @@ How to:
 - cmake . && make && make install
 
 If you will face issue: MySQL not found then go to #4
+
+# mydumper (MariaDB 10.2.x on CentOS 7)
+mydumper built over MariaDB 10.2.xx on CentOS 7
+- get mydumper sources
+- copy hash.h to /usr/include/mysql from MariaDB sources
+- install mysql-devel, MariaDB-shared
+- cmake -DMYSQL_CONFIG=/usr/mariadb_config .
+- modify mydumper.c|myloader.c to include <mysql_version.h>
+- make
+- check if it works
 
 
 ## backup_tool.sh
